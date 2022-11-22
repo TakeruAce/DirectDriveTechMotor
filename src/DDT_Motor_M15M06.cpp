@@ -9,7 +9,7 @@ MotorHandler::MotorHandler(int RX, int TX)
 	Serial1.begin(115200,SERIAL_8N1);
 }
 
-void MotorHandler::Control_Motor(uint16_t Speed, uint8_t ID, uint8_t Acce, uint8_t Brake_P, Receiver *Receiver)
+bool MotorHandler::Control_Motor(uint16_t Speed, uint8_t ID, uint8_t Acce, uint8_t Brake_P, Receiver *Receiver)
 {
 	this->Tx[0] = ID;
 	this->Tx[1] = 0x64;
@@ -23,13 +23,14 @@ void MotorHandler::Control_Motor(uint16_t Speed, uint8_t ID, uint8_t Acce, uint8
 	this->Tx[9] = CRC8_Table(Tx.data(), 9);
 	Send_Motor();
 
-	Receive_Motor();
+	bool success = Receive_Motor();
 	Receiver->ID = this->Rx[0];
 	Receiver->BMode = this->Rx[1];
 	Receiver->ECurru = (this->Rx[2] << 8) + this->Rx[3];
 	Receiver->BSpeed = (this->Rx[4] << 8) + this->Rx[5];
 	Receiver->Position = (this->Rx[6] << 8) + this->Rx[7];
 	Receiver->ErrCode = this->Rx[8];
+	return success;
 }
 
 void MotorHandler::Get_Motor(uint8_t ID, Receiver *Receiver)
@@ -120,11 +121,16 @@ void MotorHandler::Send_Motor()
 	delayMicroseconds(10);
 }
 
-void MotorHandler::Receive_Motor()
+bool MotorHandler::Receive_Motor()
 {
+	int t = millis();
+	while(!Serial1.available() && millis() - t < time_out);
 	if (Serial1.available())
 	{
 		Serial1.readBytes(Rx.data(), 10);
+		return true;
+	} else {
+		return false;
 	}
 }
 

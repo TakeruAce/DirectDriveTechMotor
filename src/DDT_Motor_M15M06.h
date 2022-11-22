@@ -17,7 +17,7 @@
 
 typedef struct Received
 {
-	uint8_t ID;		   // ID
+	uint8_t ID = 244;		   // ID
 	uint8_t Temp;	   // Temp of motor
 	uint16_t ECurru;   // electric current of motor
 	int16_t BSpeed;	   // FeedBack Speed of motor
@@ -31,7 +31,7 @@ class MotorHandler
 public:
 	std::array<uint8_t, 10> Tx;
 	std::array<uint8_t, 10> Rx;
-
+	int time_out = 10;//ms
 private:
 	const uint8_t CRC8Table[256] = {
 		0, 94, 188, 226, 97, 63, 221, 131, 194, 156, 126, 32, 163, 253, 31, 65,
@@ -53,12 +53,12 @@ private:
 
 public:
 	MotorHandler(int serial_port_RX, int serial_port_TX);
-	void Control_Motor(uint16_t Speed, uint8_t ID, uint8_t Acce, uint8_t Brake_P, Receiver *Receiver);
+	bool Control_Motor(uint16_t Speed, uint8_t ID, uint8_t Acce, uint8_t Brake_P, Receiver *Receiver);
 	void Get_Motor(uint8_t ID, Receiver *Receiver);
 	void Set_MotorMode(uint8_t Mode, uint8_t ID);
 	void Set_MotorID(uint8_t ID);
 	void Check_Motor(Receiver *Receiver);
 	void Send_Motor(void);
-	void Receive_Motor(void);
+	bool Receive_Motor(void);
 	unsigned char CRC8_Table(unsigned char *p, int counter);
 };
