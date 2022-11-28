@@ -1,8 +1,11 @@
 #include "DDT_Motor_M15M06.h"
 #include <Arduino.h>
 #include <utils.hpp>
+#include <ros.h>
+#include <sensor_msgs/JointState.h>
+#include <std_msgs/Float64MultiArray.h>
 
-SerialHandler mySerial(Serial);
+// SerialHandler mySerial(Serial);
 
 int16_t Speed = 0;   // Speed of motor
 uint8_t Acce = 0;    // Acceleration of motor
@@ -10,14 +13,30 @@ uint8_t Brake_P = 0; // Brake position of motor
 uint8_t IDs[] = {1,3};      // ID of Motor (default:1)
 
 Receiver Receiv;
-// M5Stackのモジュールによって対応するRX,TXのピン番号が違うためM5製品とRS485モジュールに対応させてください
+// ,TXのピン番号が違うためM5製品とRS485モジュールに対応させてくださいM5Stackのモジュールによって対応するRX
 auto motor_handler = MotorHandler(1, 0); // RX,TX
 const int16_t SPEED_MAX = 40;
 const int16_t SPEED_MIN = -40;
 float start_t = 0;
+
+float cmd_effort[] = {0,0};
+
+// for ROS
+using namespace ros;
+NodeHandle nh;
+sensor_msgs::JointState msg_joint;
+Publisher pub_joint("joint_state_arm", &msg_joint);
+
+void joint_torque_cb(const std_msgs::Float64MultiArray& msg_sub) {
+  for(int i=0;i<sizeof(cmd_effort)/sizeof(cmd_effort[0]);i++) {
+    cmd_effort[i] = msg_sub.data[i];
+  }
+}
+Subscriber<std_msgs::Float64MultiArray> sub_joint_torque("joint_torque", &joint_torque_cb);
+
 void setup()
 {
-  while (!Serial);
+  // while (!Serial);
   Serial.begin(115200);
   Serial.println("DDT-Motor RS485");
   delay(100);
@@ -31,6 +50,22 @@ void setup()
     motor_handler.Set_MotorMode(Mode, IDs[i]);
     delay(100);
   }
+
+  // msg_joint.name = (String*) malloc(sizeof(String) * 2);
+  // msg_joint.name_length = 2;
+  msg_joint.position = (float*) malloc(sizeof(float) * 2);
+  msg_joint.position_length = 2;
+  msg_joint.velocity = (float*) malloc(sizeof(float) * 2);
+  msg_joint.velocity_length = 2;
+  msg_joint.effort = (float*) malloc(sizeof(float) * 2);
+  msg_joint.effort_length = 2;
+
+  nh.getHardware()->setBaud(115200);
+  nh.initNode();
+  nh.subscribe(sub_joint_torque);
+  nh.advertise(pub_joint);
+
+  // for motor id reset
   // motor_handler.Set_MotorID(1);
   // delay(10);
   // motor_handler.Set_MotorID(1);
@@ -53,52 +88,20 @@ void loop()
   float t = millis();
 
   for (int i=0;i<sizeof(IDs)/sizeof(IDs[0]);i++) {
-    spin_and_get(0.2 * sin(2*3.14*(t-start_t)/1000.0) / 0.37 / 8.0 * 32767.0, IDs[i]);
+    spin_and_get(cmd_effort[i] / 0.37 / 8.0 * 32767.0, IDs[i]);
+    msg_joint.position[i] = Receiv.Position / 32767.0 * 360.0; // deg
+    msg_joint.velocity[i] = Receiv.BSpeed / 60.0 * 360.0; // deg/s
+    msg_joint.effort[i] = Receiv.ECurru / 32767.0 * 8.0 * 0.37; // Nm
   }
   // delay(10);
+  pub_joint.publish(&msg_joint);
+  nh.spinOnce();
 
-  while(micros()-prev_micro < 1000);
-  Serial.println(micros()-prev_micro);
+  while(micros()-prev_micro < 5000);
+  // Serial.println(micros()-prev_micro);
   prev_micro = micros();
-  // spin_and_get(0.2 / 0.37 / 8.0 * 32767.0); // torque
-  // delay(1500);
-  // spin_and_get(0.0 / 0.37 / 8.0 * 32767.0); // torque
-  // delay(1500);
-  // spin_and_get(-0.2 / 0.37 / 8.0 * 32767.0); // torque
-  // delay(1500);
-  // for (int i=0;i<sizeof(IDs)/sizeof(IDs[0]);i++) {
-  //   spin_and_get(90.0 / 360.0 * 32767.0, IDs[i]);
-  //   delay(10);
-  // }
-  // delay(1500);
-  // for (int i=0;i<sizeof(IDs)/sizeof(IDs[0]);i++) {
-  //   spin_and_get(0.0 / 360.0 * 32767.0, IDs[i]);
-  //   delay(10);
-  // }
-  // delay(1500);
-
-  // delay(1000);
-  // spin_and_get(Speed);  
-  // while (true)
-  // {
-  //   Speed++;
-  //   spin_and_get(Speed);
-  //   if (Speed > int16_t(SPEED_MAX))
-  //   {
-  //     break;
-  //   }
-  // }
-
-  // while (true)
-  // {
-  //   Speed--;
-  //   spin_and_get(Speed);
-  //   if (Speed < SPEED_MIN)
-  //   {
-  //     break;
-  //   }
-  // }
 }
+
 void spin_and_get(int16_t _Speed, uint8_t id)
 {
   if(motor_handler.Control_Motor(_Speed, id, Acce, Brake_P, &Receiv)) {
@@ -107,17 +110,16 @@ void spin_and_get(int16_t _Speed, uint8_t id)
     Serial.println("receive failed.");
   }
   //温度を取得したい場合はGet_Motor関数を呼び出す
-  motor_handler.Get_Motor(id, &Receiv);
   Serial.print("ID:");
   Serial.print(Receiv.ID);
   Serial.print(" Mode:");
   Serial.print(Receiv.BMode);
-  Serial.print(" Current:");
-  Serial.print(Receiv.ECurru);
-  Serial.print(" Speed:");
-  Serial.print(Receiv.BSpeed);
+  // Serial.print(" Current:");
+  // Serial.print(Receiv.ECurru);
+  // Serial.print(" Speed:");
+  // Serial.print(Receiv.BSpeed);
   Serial.print(" Position:");
-  Serial.print(Receiv.Position);
+  Serial.print(Receiv.Position / 32767.0 * 360.0);
   Serial.print(" Tmp:");
   Serial.print(Receiv.Temp);
   Serial.print(" ErrCode:");
