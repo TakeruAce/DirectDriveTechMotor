@@ -11,7 +11,7 @@ int16_t Speed = 0;   // Speed of motor
 uint8_t Acce = 0;    // Acceleration of motor
 uint8_t Brake_P = 0; // Brake position of motor
 uint8_t IDs[] = {1,3};      // ID of Motor (default:1)
-double angle_offset[] = {-0.582,1.084};
+double angle_offset[] = {-0.536,1.715};
 double motor_direction[] = {-1,1};
 
 Receiver Receiv;
@@ -89,7 +89,7 @@ void loop()
 {
   float t = millis();
   for (int i=0;i<sizeof(IDs)/sizeof(IDs[0]);i++) {
-    spin_and_get(motor_direction[i] * cmd_effort[i] / 0.37 / 8.0 * 32767.0, IDs[i]);
+    spin_and_get(-motor_direction[i] * cmd_effort[i] / 0.37 / 8.0 * 32767.0, IDs[i]);
     msg_joint.position[i] = motor_direction[i] * Receiv.Position / 32767.0 * 2 * PI - angle_offset[i]; // rad
     // convert angle to (-pi,pi)
     if (msg_joint.position[i] < -PI) msg_joint.position[i] += 2* PI;
