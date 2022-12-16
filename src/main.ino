@@ -11,7 +11,7 @@ int16_t Speed = 0;   // Speed of motor
 uint8_t Acce = 0;    // Acceleration of motor
 uint8_t Brake_P = 0; // Brake position of motor
 uint8_t IDs[] = {1,3};      // ID of Motor (default:1)
-double angle_offset[] = {-0.536,1.0853};
+double angle_offset[] = {0.1319265365600586, -0.20766878128051758};
 double prev_angle[] = {0,0};
 double motor_direction[] = {-1,1};
 
@@ -102,6 +102,7 @@ void loop()
     prev_angle[i] = msg_joint.position[i];
     prev_Receiv[i] = Receiv[i];
   }
+  msg_joint.header.stamp = nh.now();
   // delay(10);
   pub_joint.publish(&msg_joint);
   nh.spinOnce();
