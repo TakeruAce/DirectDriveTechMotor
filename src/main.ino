@@ -4,6 +4,7 @@
 #include <ros.h>
 #include <sensor_msgs/JointState.h>
 #include <std_msgs/Float64MultiArray.h>
+#include <std_msgs/Bool.h>
 
 // SerialHandler mySerial(Serial);
 
@@ -11,7 +12,7 @@ int16_t Speed = 0;   // Speed of motor
 uint8_t Acce = 0;    // Acceleration of motor
 uint8_t Brake_P = 0; // Brake position of motor
 uint8_t IDs[] = {1,3};      // ID of Motor (default:1)
-double angle_offset[] = {0.1319265365600586, -0.20766878128051758};
+double angle_offset[] = {0, 0};
 double prev_angle[] = {0,0};
 double motor_direction[] = {-1,1};
 
@@ -25,6 +26,10 @@ float start_t = 0;
 
 float cmd_effort[] = {0,0};
 
+// for calibration
+bool start_calib_flag = false;
+float calib_count = 0;
+
 // for ROS
 using namespace ros;
 NodeHandle nh;
@@ -36,7 +41,29 @@ void joint_torque_cb(const std_msgs::Float64MultiArray& msg_sub) {
     cmd_effort[i] = msg_sub.data[i];
   }
 }
+
+void calib_cb(std_msgs::Bool& msg) {
+  if (msg.data) {
+		if (!start_calib_flag) {
+			nh.loginfo("start force sensor calibration...");
+			start_calib_flag = true;
+			for(int i=0;i<2;i++) angle_offset[i]=0;
+			calib_count = 0;
+		} else {
+			for(int i=0;i<2;i++) {
+				angle_offset[i] = Receiv[i].Position / (calib_count+1) + calib_count*angle_offset[i] / (calib_count+1);
+			}
+			calib_count++;
+		}
+	} else {
+		if (start_calib_flag) {
+			nh.loginfo("calibration finished.");
+			start_calib_flag = false;
+		}
+	}
+}
 Subscriber<std_msgs::Float64MultiArray> sub_joint_torque("joint_torque", &joint_torque_cb);
+Subscriber<std_msgs::Bool> sub_calib("calib", &calib_cb);
 
 void setup()
 {
@@ -67,6 +94,7 @@ void setup()
   nh.getHardware()->setBaud(115200);
   nh.initNode();
   nh.subscribe(sub_joint_torque);
+  nh.subscribe(sub_calib);
   nh.advertise(pub_joint);
 
   // for motor id reset
@@ -92,7 +120,7 @@ void loop()
   float t = millis();
   for (int i=0;i<sizeof(IDs)/sizeof(IDs[0]);i++) {
     spin_and_get(-motor_direction[i] * cmd_effort[i] / 0.37 / 8.0 * 32767.0, IDs[i], Receiv[i], prev_Receiv[i]);
-    msg_joint.position[i] = motor_direction[i] * Receiv[i].Position / 32767.0 * 2 * PI - angle_offset[i]; // rad
+    msg_joint.position[i] = motor_direction[i] * (Receiv[i].Position - angle_offset[i])/ 32767.0 * 2 * PI; // rad
     msg_joint.velocity[i]=  motor_direction[i] * Receiv[i].BSpeed / 60.0 * 2 * PI; // rad/s
     msg_joint.effort[i] = motor_direction[i] * Receiv[i].ECurru / 32767.0 * 8.0 * 0.37; // Nm
 
