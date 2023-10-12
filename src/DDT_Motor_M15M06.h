@@ -31,7 +31,7 @@ class MotorHandler
 public:
 	std::array<uint8_t, 10> Tx;
 	std::array<uint8_t, 10> Rx;
-	int time_out = 10;//ms
+	int time_out = 8;//ms
 private:
 	const uint8_t CRC8Table[256] = {
 		0, 94, 188, 226, 97, 63, 221, 131, 194, 156, 126, 32, 163, 253, 31, 65,
